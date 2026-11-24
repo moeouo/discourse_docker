@@ -173,8 +173,20 @@ class DiscourseConfigValidatorTest < Minitest::Test
     document = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false)
     command = document.fetch("hooks").fetch("before_bundle_exec").first.fetch("exec").fetch("cmd").first
 
-    assert_includes command, "bundle config set mirror.https://rubygems.org"
+    assert_includes command, "bundle config set --global mirror.https://rubygems.org"
+    refute_includes command, "bundle config set mirror.https://rubygems.org"
     refute_includes command, "bundle config mirror.https://rubygems.org"
+  end
+
+  def test_bundler_mirror_is_explicitly_set_for_the_discourse_project
+    path = File.join(DEPLOY_DIR, "overlays", "china.mirrors.template.yml")
+    document = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false)
+    execution = document.fetch("hooks").fetch("before_bundle_exec").first.fetch("exec")
+    command = execution.fetch("cmd").first
+
+    assert_equal "$home", execution["cd"]
+    assert_includes command, "bundle config set --local mirror.https://rubygems.org"
+    assert_includes command, "bundle config get --local mirror.https://rubygems.org"
   end
 
   def test_web_overlay_applies_and_verifies_worker_count

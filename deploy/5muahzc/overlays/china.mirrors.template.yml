@@ -29,5 +29,24 @@ hooks:
 
   before_bundle_exec:
     - exec:
+        cd: $home
         cmd:
-          - su discourse -c 'bundle config set mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems'
+          - |
+            set -e
+            mirror="https://mirrors.tuna.tsinghua.edu.cn/rubygems"
+            if ! curl -fsSI --connect-timeout 10 --max-time 30 "$mirror/" >/dev/null; then
+              echo "RubyGems mirror is unreachable: $mirror"
+              exit 1
+            fi
+            # The install command runs in $home. Set both scopes explicitly so
+            # its project-local .bundle/config always contains the mirror.
+            su discourse -c "bundle config set --global mirror.https://rubygems.org $mirror"
+            su discourse -c "bundle config set --local mirror.https://rubygems.org $mirror"
+            su discourse -c "bundle config set --global mirror.https://rubygems.org.fallback_timeout 30"
+            su discourse -c "bundle config set --local mirror.https://rubygems.org.fallback_timeout 30"
+            configured="$(su discourse -c 'bundle config get --local mirror.https://rubygems.org')"
+            printf '%s\n' "$configured"
+            if ! printf '%s\n' "$configured" | grep -Fq "$mirror"; then
+              echo "Bundler project-local mirror verification failed"
+              exit 1
+            fi
