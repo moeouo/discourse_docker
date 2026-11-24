@@ -20,7 +20,7 @@ overlays/
   web.tuning.template.yml       Nginx Worker 数调优
   china.mirrors.template.yml    国内包镜像与可选 GitHub 镜像
 validate.rb                     配置、资源预算与升级兼容性校验
-test_validate.rb                9 个回归测试（含 Pups 替换与覆盖层行为测试）
+test_validate.rb                10 个回归测试（含 Pups、Bundler 与覆盖层行为测试）
 README.md                       部署、升级和故障处理说明
 ```
 

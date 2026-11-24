@@ -168,6 +168,15 @@ class DiscourseConfigValidatorTest < Minitest::Test
     end
   end
 
+  def test_china_mirror_overlay_uses_modern_bundler_config_syntax
+    path = File.join(DEPLOY_DIR, "overlays", "china.mirrors.template.yml")
+    document = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false)
+    command = document.fetch("hooks").fetch("before_bundle_exec").first.fetch("exec").fetch("cmd").first
+
+    assert_includes command, "bundle config set mirror.https://rubygems.org"
+    refute_includes command, "bundle config mirror.https://rubygems.org"
+  end
+
   def test_web_overlay_applies_and_verifies_worker_count
     Dir.mktmpdir(".nginx-overlay-test-", DEPLOY_DIR) do |dir|
       config = File.join(dir, "nginx.conf")
