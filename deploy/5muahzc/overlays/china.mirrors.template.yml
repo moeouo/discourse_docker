@@ -44,7 +44,7 @@ hooks:
             su discourse -c "bundle config set --local mirror.https://rubygems.org $mirror"
             su discourse -c "bundle config set --global mirror.https://rubygems.org.fallback_timeout 30"
             su discourse -c "bundle config set --local mirror.https://rubygems.org.fallback_timeout 30"
-            configured="$(su discourse -c 'bundle config get --local mirror.https://rubygems.org')"
+            configured="$(su discourse -c 'bundle config get mirror.https://rubygems.org')"
             printf '%s\n' "$configured"
             if ! printf '%s\n' "$configured" | grep -Fq "$mirror"; then
               echo "Bundler project-local mirror verification failed"

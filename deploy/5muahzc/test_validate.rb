@@ -186,7 +186,8 @@ class DiscourseConfigValidatorTest < Minitest::Test
 
     assert_equal "$home", execution["cd"]
     assert_includes command, "bundle config set --local mirror.https://rubygems.org"
-    assert_includes command, "bundle config get --local mirror.https://rubygems.org"
+    assert_includes command, "bundle config get mirror.https://rubygems.org"
+    refute_includes command, "bundle config get --local"
   end
 
   def test_web_overlay_applies_and_verifies_worker_count
