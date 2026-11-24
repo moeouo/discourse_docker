@@ -1,0 +1,107 @@
+## Standalone Discourse for 2 x Xeon Gold 6138 (80 logical CPUs),
+## 128 GB RAM and 1 TB SSD. Official templates remain upgradeable; local
+## overlays contain only hardware/network tuning and never declare base_image.
+
+templates:
+  - "templates/postgres.template.yml"
+  - "deploy/5muahzc/overlays/postgres.tuning.template.yml"
+  - "templates/redis.template.yml"
+  - "deploy/5muahzc/overlays/china.mirrors.template.yml"
+  - "templates/web.template.yml"
+  - "deploy/5muahzc/overlays/web.tuning.template.yml"
+  - "templates/web.ratelimited.template.yml"
+  - "templates/web.ssl.template.yml"
+  - "templates/web.letsencrypt.ssl.template.yml"
+  - "templates/enable-ruby-yjit.yml"
+
+expose:
+  - "80:80"
+  - "443:443"
+
+# Leave 8 logical CPUs and 16 GB RAM for the host. The container gets no
+# additional swap beyond its 112 GB memory limit.
+docker_args: "--cpus=72 --memory=112g --memory-swap=112g --pids-limit=8192 --log-driver=json-file --log-opt=max-size=100m --log-opt=max-file=5"
+
+params:
+  version: latest
+  upload_size: 50m
+
+  # Existing official PostgreSQL parameters (applied before its temporary
+  # bootstrap database starts). Keep synchronous commits for data safety.
+  db_synchronous_commit: "on"
+  db_shared_buffers: "16GB"
+  db_work_mem: "16MB"
+  db_default_text_search_config: "pg_catalog.english"
+
+  # Additional parameters applied by postgres.tuning.template.yml.
+  # work_mem is per sort/hash operation; effective_cache_size is a planner
+  # estimate, not a direct memory allocation. Keep Pups parameter names
+  # unambiguous: db_parallel_workers_per_gather deliberately avoids sharing
+  # an underscore-terminated prefix with db_max_parallel_workers.
+  db_maintenance_work_mem: "2GB"
+  db_effective_cache_size: "64GB"
+  db_max_connections: "200"
+  db_wal_buffers: "16MB"
+  db_min_wal_size: "2GB"
+  db_max_wal_size: "8GB"
+  db_checkpoint_completion_target: "0.9"
+  db_random_page_cost: "1.1"
+  db_effective_io_concurrency: "200"
+  db_max_worker_processes: "16"
+  db_max_parallel_workers: "16"
+  db_parallel_workers_per_gather: "4"
+  db_max_parallel_maintenance_workers: "4"
+
+  # Existing official Redis/Nginx parameters plus our Nginx worker count.
+  redis_io_threads: "4"
+  nginx_workers: 16
+  nginx_worker_connections: 8192
+
+env:
+  LC_ALL: en_US.UTF-8
+  LANG: en_US.UTF-8
+  LANGUAGE: en_US.UTF-8
+  DISCOURSE_DEFAULT_LOCALE: zh_CN
+
+  # Request processes, supervised Sidekiq processes, DB pool per Web process,
+  # and job threads per Sidekiq process. Keep these four values in sync with
+  # db_max_connections; validate.rb enforces the resulting connection budget.
+  UNICORN_WORKERS: 16
+  UNICORN_SIDEKIQS: 4
+  DISCOURSE_DB_POOL: 8
+  DISCOURSE_SIDEKIQ_WORKERS: 5
+
+  # Required: replace all example/CHANGE_ME values before deployment.
+  DISCOURSE_HOSTNAME: "discourse.example.com"
+  DISCOURSE_DEVELOPER_EMAILS: "CHANGE_ME@example.com"
+
+  # Port 587 uses STARTTLS by default. For port 465, enable implicit TLS.
+  DISCOURSE_SMTP_ADDRESS: "smtp.example.com"
+  DISCOURSE_SMTP_PORT: 587
+  DISCOURSE_SMTP_USER_NAME: "CHANGE_ME@example.com"
+  DISCOURSE_SMTP_PASSWORD: "CHANGE_ME"
+  DISCOURSE_NOTIFICATION_EMAIL: "noreply@example.com"
+  # DISCOURSE_SMTP_FORCE_TLS: true
+  # DISCOURSE_SMTP_DOMAIN: "example.com"
+
+  # Optional trusted GitHub replacement prefix. Empty uses github.com directly.
+  # Example: https://your-mirror.example/https://github.com/
+  GITHUB_MIRROR: ""
+
+  # Optional CDN origin; enable only after the CDN is fully configured.
+  # DISCOURSE_CDN_URL: "https://cdn.example.com"
+
+volumes:
+  - volume:
+      host: /var/discourse/shared/standalone
+      guest: /shared
+  - volume:
+      host: /var/discourse/shared/standalone/log/var-log
+      guest: /var/log
+
+hooks:
+  after_code:
+    - exec:
+        cd: $home/plugins
+        cmd:
+          - git clone --depth 1 https://github.com/discourse/docker_manager.git

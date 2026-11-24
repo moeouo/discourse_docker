@@ -1,0 +1,25 @@
+# Explicit Nginx worker count; worker_connections stays in the official template.
+# No base_image is declared here.
+run:
+  - exec:
+      cmd:
+        - |
+          set -e
+          config=/etc/nginx/nginx.conf
+          if [ ! -f "$config" ]; then
+            echo "Nginx tuning failed: $config was not found"
+            exit 1
+          fi
+          ruby -e '
+            path, workers = ARGV
+            abort("Nginx worker count is empty") if workers.to_s.empty?
+            contents = File.read(path)
+            pattern = /^[[:space:]]*worker_processes[[:space:]]+[^;]+;/
+            abort("Nginx worker_processes setting not found") unless contents.match?(pattern)
+            File.write(path, contents.sub(pattern, "worker_processes #{workers};"))
+          ' "$config" "$nginx_workers"
+          if ! grep -qFx "worker_processes ${nginx_workers};" "$config"; then
+            echo "Nginx tuning failed: could not apply worker_processes ${nginx_workers};"
+            exit 1
+          fi
+          echo "Applied production Nginx tuning to $config"

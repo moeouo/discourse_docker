@@ -1,0 +1,33 @@
+# China-friendly package mirrors without pinning a third-party GitHub proxy.
+# GITHUB_MIRROR is optional and must use HTTPS when configured.
+hooks:
+  before_code:
+    - exec:
+        cmd:
+          - |
+            set -e
+            case "$GITHUB_MIRROR" in
+              ""|https://*) ;;
+              *)
+                echo "GITHUB_MIRROR must be empty or an HTTPS replacement prefix"
+                exit 1
+                ;;
+            esac
+            if [ -n "$GITHUB_MIRROR" ]; then
+              su discourse -c "git config --global url.\"${GITHUB_MIRROR}\".insteadOf \"https://github.com/\""
+            fi
+
+  before_web:
+    - exec:
+        cmd:
+          - su discourse -c 'gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/ --remove https://rubygems.org/'
+
+  before_yarn:
+    - exec:
+        cmd:
+          - su discourse -c 'pnpm config set registry https://registry.npmmirror.com --global'
+
+  before_bundle_exec:
+    - exec:
+        cmd:
+          - su discourse -c 'bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems'

@@ -1,0 +1,49 @@
+# Additional SSD/memory/parallelism tuning. Values are defined in app.yml.
+# No base_image and no PostgreSQL-major-version path are hardcoded here.
+run:
+  - exec:
+      cmd:
+        - |
+          set -e
+          # Ruby is guaranteed in the Discourse base image. Select the target
+          # cluster by numeric version, including during major-version upgrades.
+          config="$(ruby -e 'puts Dir["/etc/postgresql/*/main/postgresql.conf"].max_by { |path| path[%r{/(\d+(?:\.\d+)*)/main/postgresql\.conf\z}, 1].to_s.split(".").map(&:to_i) }')"
+          if [ -z "$config" ] || [ ! -f "$config" ]; then
+            echo "PostgreSQL tuning failed: postgresql.conf was not found"
+            exit 1
+          fi
+          echo "Applying production PostgreSQL tuning to $config"
+
+          set_pg_param() {
+            key="$1"
+            value="$2"
+            if ! grep -qE "^#?[[:space:]]*${key}[[:space:]]*=" "$config"; then
+              echo "PostgreSQL tuning failed: setting ${key} was not found in $config"
+              exit 1
+            fi
+            ruby -e '
+              path, key, value = ARGV
+              contents = File.read(path)
+              pattern = /^#?[[:space:]]*#{Regexp.escape(key)}[[:space:]]*=.*/
+              abort("PostgreSQL setting not found: #{key}") unless contents.match?(pattern)
+              File.write(path, contents.sub(pattern, "#{key} = #{value}"))
+            ' "$config" "$key" "$value"
+            if ! grep -qFx "${key} = ${value}" "$config"; then
+              echo "PostgreSQL tuning failed: could not apply ${key} = ${value}"
+              exit 1
+            fi
+          }
+
+          set_pg_param maintenance_work_mem "$db_maintenance_work_mem"
+          set_pg_param effective_cache_size "$db_effective_cache_size"
+          set_pg_param max_connections "$db_max_connections"
+          set_pg_param wal_buffers "$db_wal_buffers"
+          set_pg_param min_wal_size "$db_min_wal_size"
+          set_pg_param max_wal_size "$db_max_wal_size"
+          set_pg_param checkpoint_completion_target "$db_checkpoint_completion_target"
+          set_pg_param random_page_cost "$db_random_page_cost"
+          set_pg_param effective_io_concurrency "$db_effective_io_concurrency"
+          set_pg_param max_worker_processes "$db_max_worker_processes"
+          set_pg_param max_parallel_workers "$db_max_parallel_workers"
+          set_pg_param max_parallel_workers_per_gather "$db_parallel_workers_per_gather"
+          set_pg_param max_parallel_maintenance_workers "$db_max_parallel_maintenance_workers"
